@@ -1,3 +1,4 @@
+/*globals window,document,jQuery */
 /*
   An elem for determining if an elem is within a certain
   distance from the edge above or below the screen, and attaching
@@ -5,10 +6,10 @@
 
   General Usage:
 
-  *	Place the library anywhere in your JavaScript code before you
+  *  Place the library anywhere in your JavaScript code before you
     intend to call the function.
 
-  * 	To initialize Sonar with a different default distance, modify
+  *  To initialize Sonar with a different default distance, modify
     the sonar = Sonar() line immediately following the Sonar
     library definition. Example:
 
@@ -16,24 +17,24 @@
 
   Note:
 
-  * The default distance is 0 pixels.
+  *  The default distance is 0 pixels.
 
 
   sonar.detect() Usage
 
-  *	Use sonar.detect(elem, distance) to check if the
+  *  Use sonar.detect(elem, distance) to check if the
     elem is within screen boundaries.
 
     @elem - The elem you want to detect visibility.
     @distance - The distance from the screen edge that should
     count in the check. Uses default distance if not specified.
 
-  *	Note: sonar.detect() adds a property to
+  *  Note: sonar.detect() adds a property to
     ojbects called sonarElemTop. Test to ensure there
     aren't any conflicts with your code. If there
     are, rename sonarElemTop to something else in the code.
 
-  *	sonar.detect() returns:
+  *  sonar.detect() returns:
     true if the elem is within the screen boundaries
     false if th elem is out of the screen boundaries
 
@@ -53,10 +54,10 @@
 
   sonar.add() Usage
 
-  *	This method stores elems that are then polled
+  *  This method stores elems that are then polled
     on user scroll by the Sonar.detect() method.
 
-  *	Polling initializes once the sonar.add() method is passed
+  *  Polling initializes once the sonar.add() method is passed
     an elem with the following properties:
 
     obj : A reference to the elem to observe until it is within
@@ -65,8 +66,8 @@
     id : An alternative to the obj parameter, an "id" can be used
          to grab the elem to observe.
 
-    call: 	The function to call when the elem is within the
-          specified distance (px). The @elem argument will
+    call:  The function to call when the elem is within the
+        specified distance (px). The @elem argument will
         include the elem that triggered the callback.
 
     px : The specified distance to include as being visible on
@@ -102,7 +103,7 @@
 
   Notes:
 
-  *	Setting the body or html of your page to 100% will cause sonar to have
+  *  Setting the body or html of your page to 100% will cause sonar to have
     an invalid height calculation in Firefox. It is recommended that you
     do not set this CSS property.
 
@@ -112,13 +113,13 @@
       height:100%;  // Do not do this.
     }
 
-  *	If you want to set the default distance to something other
+  *  If you want to set the default distance to something other
     than 0, either update the property directly in the code or
     you can do this:
 
     sonar.blip.d = 100;  // Where 100 = 100 pixels above and below the screen edge.
 
-  *	Sleep well at night knowing Sonar automatically cleans up the
+  *  Sleep well at night knowing Sonar automatically cleans up the
     event listeners on the scroll event once all calls have executed.
 
   Code History:
@@ -150,212 +151,245 @@
 
 */
 
-(function( $, win, doc, undefined ){
+(function ($, win, doc, undefined) {
 
-$.fn.sonar = function( distance, full ){
-  // No callbacks, return the results from Sonar for
-  // the first element in the stack.
-  if ( typeof distance === "boolean" ) {
-    full = distance;
-    distance = undefined;
-  }
+  "use strict";
 
-  return $.sonar( this[0], distance, full );
-};
+  $.fn.sonar = function (distance, full) {
+    // No callbacks, return the results from Sonar for
+    // the first element in the stack.
+    if (typeof distance === "boolean") {
+      full = distance;
+      distance = undefined;
+    }
 
-var body = doc.body,
-  $win = $(win),
+    return $.sonar(this[0], distance, full);
+  };
 
-  onScreenEvent = "scrollin",
-  offScreenEvent = "scrollout",
+  var body = doc.body,
+    $win = $(win),
 
-  detect = function( elem, distance, full ){
+    onScreenEvent = "scrollin",
+    offScreenEvent = "scrollout",
 
-    if ( elem ) {
+    detect = function (options) {
 
-      // Cache the body elem in our private global.
-      body || ( body = doc.body );
+      var opts = $.extend({
+        parent: null,
+        elem: null,
+        distance: 0,
+        full: false
+      }, options),
+      parentElem, elemTop, bodyHeight, screenHeight, scrollTop, elemHeight;
 
-      var parentElem = elem, // Clone the elem for use in our loop.
+      // Check to see if a parent was passed, if not, use window.
+      opts.parent = opts.parent || $win;
 
-        elemTop = 0, // The resets the calculated elem top to 0.
+      if (opts.elem) {
+
+        // Cache the body elem in our private global.
+        body = body || doc.body;
+
+        // Clone the elem for use in our loop.
+        parentElem = opts.elem;
+
+        // The resets the calculated elem top to 0.
+        elemTop = 0;
 
         // Used to recalculate elem.sonarElemTop if body height changes.
-        bodyHeight = body.offsetHeight,
+        bodyHeight = body.offsetHeight;
 
+        // Height of the screen.
         // NCZ: I don't think you need innerHeight, I believe all major browsers support clientHeight.
-        screenHeight = win.innerHeight || doc.documentElement.clientHeight || body.clientHeight || 0, // Height of the screen.
+        // DSJ: Pretty sure that IE6, IE7 and older Opera have issues with clientHeight
+        screenHeight = opts.parent.innerHeight || doc.documentElement.clientHeight || body.clientHeight || 0;
 
+        // How far the user scrolled down.
         // NCZ: I don't think you need pageYOffset, I believe all major browsers support scrollTop.
-        scrollTop = doc.documentElement.scrollTop || win.pageYOffset || body.scrollTop || 0, // How far the user scrolled down.
-        elemHeight = elem.offsetHeight || 0; // Height of the element.
+        // DSJ: Pretty sure that IE6, IE7 and older Opera have issues with scrollTop
+        scrollTop = doc.documentElement.scrollTop || opts.parent.pageYOffset || body.scrollTop || 0;
 
-      // If our custom "sonarTop" variable is undefined, or the document body
-      // height has changed since the last time we ran sonar.detect()...
-      if ( !elem.sonarElemTop || elem.sonarBodyHeight !== bodyHeight ) {
+        // Height of the element.
+        elemHeight = opts.elem.offsetHeight || 0;
 
-        // Loop through the offsetParents to calculate it.
-        if ( parentElem.offsetParent ) {
-          do {
-            elemTop += parentElem.offsetTop;
+        // If our custom "sonarTop" variable is undefined, or the document body
+        // height has changed since the last time we ran sonar.detect()...
+        if (!opts.elem.sonarElemTop || opts.elem.sonarBodyHeight !== bodyHeight) {
+
+          // Loop through the offsetParents to calculate it.
+          if (parentElem.offsetParent) {
+            do {
+              elemTop += parentElem.offsetTop;
+            }
+            while (parentElem = parentElem.offsetParent);
           }
-          while ( parentElem = parentElem.offsetParent );
+
+          // Set the custom property (sonarTop) to avoid future attempts to calculate
+          // the distance on this elem from the top of the page.
+          opts.elem.sonarElemTop = elemTop;
+
+          // Along the same lines, store the body height when we calculated
+          // the elem's top.
+          opts.elem.sonarBodyHeight = bodyHeight;
         }
 
-        // Set the custom property (sonarTop) to avoid future attempts to calculate
-        // the distance on this elem from the top of the page.
-        elem.sonarElemTop = elemTop;
+        // If no distance was given, assume 0.
+        opts.distance = opts.distance || 0;
 
-        // Along the same lines, store the body height when we calculated
-        // the elem's top.
-        elem.sonarBodyHeight = bodyHeight;
+        // Dump all calculated variables.
+        /*
+        console.dir({
+          elem: opts.elem,
+          sonarElemTop: opts.elem.sonarElemTop,
+          elemHeight: elemHeight,
+          scrollTop: scrollTop,
+          screenHeight: screenHeight,
+          distance: opts.distance,
+          full: opts.full
+        });
+        */
+
+        // If elem bottom is above the screen top and
+        // the elem top is below the screen bottom, it's false.
+        // If full is specified, it si subtracted or added
+        // as needed from the element's height.
+        return (!(opts.elem.sonarElemTop + (opts.full ? 0 : elemHeight) < scrollTop - opts.distance) && !(opts.elem.sonarElemTop + (opts.full ? elemHeight : 0) > scrollTop + screenHeight + opts.distance));
       }
+    },
 
-      // If no distance was given, assume 0.
-      distance = distance === undefined ? 0 : distance;
+    // Container for elems needing to be polled.
+    pollQueue = {},
 
-      // Dump all calculated variables.
-/*
-      console.dir({
-        elem: elem,
-        sonarElemTop: elem.sonarElemTop,
-        elemHeight: elemHeight,
-        scrollTop: scrollTop,
-        screenHeight: screenHeight,
-        distance: distance,
-        full: full
-      });
-*/
+    // Indicates if scroll events are bound to the poll.
+    pollActive = 0,
 
-      // If elem bottom is above the screen top and
-      // the elem top is below the screen bottom, it's false.
-      // If full is specified, it si subtracted or added
-      // as needed from the element's height.
-      return (!(elem.sonarElemTop + (full ? 0 : elemHeight) < scrollTop - distance) &&
-          !(elem.sonarElemTop + (full ? elemHeight : 0) > scrollTop + screenHeight + distance));
-    }
-  },
+    // Used for debouncing.
+    pollId,
 
-  // Container for elems needing to be polled.
-  pollQueue = {},
+    // Function that handles polling when the user scrolls.
+    poll = function () {
 
-  // Indicates if scroll events are bound to the poll.
-  pollActive = 0,
+      // Debouncing speed optimization. Essentially prevents
+      // poll requests from queue'ing up and overloading
+      // the scroll event listener.
+      pollId && window.clearTimeout(pollId);
+      pollId = window.setTimeout(function () {
 
-  // Used for debouncing.
-  pollId,
-
-  // Function that handles polling when the user scrolls.
-  poll = function(){
-
-    // Debouncing speed optimization. Essentially prevents
-    // poll requests from queue'ing up and overloading
-    // the scroll event listener.
-    pollId && clearTimeout( pollId );
-    pollId = setTimeout(function(){
-
-      var elem,
+        var elem,
         elems,
         screenEvent,
         options,
         detected,
         i, l;
 
-      for ( screenEvent in pollQueue ) {
+        for (screenEvent in pollQueue) {
 
-        elems = pollQueue[ screenEvent ];
+          if (pollQueue.hasOwnProperty(screenEvent)) {
 
-        for (i = 0, l = elems.length; i < l; i++) {
+            elems = pollQueue[screenEvent];
 
-          options = elems[i];
-          elem = options.elem;
+            for (i = 0, l = elems.length; i < l; i++) {
 
-          // console.log("Polling " + elem.id);
+              options = elems[i];
+              elem = options.elem;
 
-          detected = detect( elem, options.px, options.full );
+              // console.log("Polling " + elem.id);
 
-          // If the elem is not detected (offscreen) or detected (onscreen)
-          // remove the elem from the queue and fire the callback.
-          if ( screenEvent === offScreenEvent ? !detected : detected ) {
-//							// console.log(screenEvent);
-            if (!options.tr) {
+              detected = detect({
+                parent: options.parent || null,
+                elem: elem || null,
+                distance: options.px || 0,
+                full: options.full || false
+              });
 
-              if ( elem[ '_' + screenEvent ] ) {
-                // console.log("triggered:" + elem.id);
-                // Trigger the onscreen or offscreen event depending
-                // on the desired event.
-                $(elem).trigger( screenEvent );
+              // If the elem is not detected (offscreen) or detected (onscreen)
+              // remove the elem from the queue and fire the callback.
+              if (screenEvent === offScreenEvent ? !detected : detected) {
+                // console.log(screenEvent);
+                if (!options.tr) {
 
-                options.tr = 1;
+                  if (elem['_' + screenEvent]) {
+                    // console.log("triggered:" + elem.id);
+                    // Trigger the onscreen or offscreen event depending
+                    // on the desired event.
+                    $(elem).trigger(screenEvent);
 
-              // removeSonar was called on this element, clean it up
-              // instead of triggering the event.
+                    options.tr = 1;
+
+                    // removeSonar was called on this element, clean it up
+                    // instead of triggering the event.
+                  } else {
+                    // console.log("Deleting " + elem.id);
+
+                    // Remove this object from the elem poll container.
+                    elems.splice(i, 1);
+
+                    // Decrement the counter and length because we just removed
+                    // one from it.
+                    i--;
+                    l--;
+                  }
+                }
               } else {
-                // console.log("Deleting " + elem.id);
-
-                // Remove this object from the elem poll container.
-                elems.splice(i, 1);
-
-                // Decrement the counter and length because we just removed
-                // one from it.
-                i--;
-                l--;
+                options.tr = 0;
               }
             }
-          } else {
-            options.tr = 0;
           }
         }
+
+      }, 0); // End window.setTimeout performance tweak.
+    },
+
+    removeSonar = function (elem, screenEvent) {
+      // console.log("Removing " + elem.id);
+      elem['_' + screenEvent] = 0;
+    },
+
+    addSonar = function (elem, options) {
+      // console.log("Really adding " + elem.id);
+      // Prepare arguments.
+      var distance = options.px,
+        full = options.full,
+        screenEvent = options.evt,
+        parent = win, // Getting ready to accept parents: options.parent || win,
+        detected = detect({
+          parent: options.parent || null,
+          elem: elem || null,
+          distance: options.px || 0,
+          full: options.full || false
+        }),
+        triggered = 0;
+
+      elem['_' + screenEvent] = 1;
+
+      // If the elem is not detected (offscreen) or detected (onscreen)
+      // trigger the event and fire the callback immediately.
+      if (screenEvent === offScreenEvent ? !detected : detected) {
+        // console.log("Triggering " + elem.id + " " + screenEvent );
+        // Trigger the onscreen event at the next possible cycle.
+        // Artz: Ask the jQuery team why I needed to do this.
+        window.setTimeout(function () {
+          $(elem).trigger(screenEvent === offScreenEvent ? offScreenEvent : onScreenEvent);
+        }, 0);
+        triggered = 1;
+        // Otherwise, add it to the polling queue.
       }
 
-    }, 0 ); // End setTimeout performance tweak.
-  },
+      // console.log("Adding " + elem.id + " to queue.");
+      // Push the element and its callback into the poll queue.
+      pollQueue[screenEvent].push({
+        parent: parent || null,
+        elem: elem || null,
+        px: distance || 0,
+        full: full || false,
+        tr: triggered
+      });
 
-  removeSonar = function( elem, screenEvent ){
-    // console.log("Removing " + elem.id);
-    elem[ '_' + screenEvent ] = 0;
-  },
-
-  addSonar = function( elem, options ) {
-  // console.log("Really adding " + elem.id);
-    // Prepare arguments.
-    var distance = options.px,
-      full = options.full,
-      screenEvent = options.evt,
-      parent = win, // Getting ready to accept parents: options.parent || win,
-      detected = detect( elem, distance, full /*, parent */ ),
-      triggered = 0;
-
-    elem[ '_' + screenEvent ] = 1;
-
-    // If the elem is not detected (offscreen) or detected (onscreen)
-    // trigger the event and fire the callback immediately.
-    if ( screenEvent === offScreenEvent ? !detected : detected ) {
-      // console.log("Triggering " + elem.id + " " + screenEvent );
-      // Trigger the onscreen event at the next possible cycle.
-      // Artz: Ask the jQuery team why I needed to do this.
-      setTimeout(function(){
-        $(elem).trigger( screenEvent === offScreenEvent ? offScreenEvent : onScreenEvent );
-      }, 0);
-      triggered = 1;
-    // Otherwise, add it to the polling queue.
-    }
-
-    // console.log("Adding " + elem.id + " to queue.");
-    // Push the element and its callback into the poll queue.
-    pollQueue[ screenEvent ].push({
-      elem: elem,
-      px: distance,
-      full: full,
-      tr: triggered/* ,
-      parent: parent */
-    });
-
-    // Activate the poll if not currently activated.
-    if ( !pollActive ) {
-      $win.bind( "scroll", poll );
-      pollActive = 1;
-    }
+      // Activate the poll if not currently activated.
+      if (!pollActive) {
+        $win.bind("scroll", poll);
+        pollActive = 1;
+      }
 
 
       // Call the prepare function if there, used to
@@ -366,56 +400,56 @@ var body = doc.body,
         prepCallback.call( elem, elem, detected );
       }
       */
-  };
+    };
 
   // Open sonar function up to the public.
   $.sonar = detect;
 
-  pollQueue[ onScreenEvent ] = [];
-  $.event.special[ onScreenEvent ] = {
+  pollQueue[onScreenEvent] = [];
+  $.event.special[onScreenEvent] = {
 
-    add: function( handleObj ) {
+    add: function (handleObj) {
       var data = handleObj.data || {},
-        elem = this;
+      elem = this;
 
-      if (!elem[onScreenEvent]){
+      if (!elem[onScreenEvent]) {
         addSonar(this, {
+          /*parent: data.parent,*/
           px: data.distance,
           full: data.full,
-          evt: onScreenEvent /*,
-          parent: data.parent */
+          evt: onScreenEvent
         });
       }
     },
 
-    remove: function( handleObj ) {
-      removeSonar( this, onScreenEvent );
+    remove: function (handleObj) {
+      removeSonar(this, onScreenEvent);
     }
 
   };
 
-  pollQueue[ offScreenEvent ] = [];
-  $.event.special[ offScreenEvent ] = {
+  pollQueue[offScreenEvent] = [];
+  $.event.special[offScreenEvent] = {
 
-    add: function( handleObj ) {
+    add: function (handleObj) {
 
       var data = handleObj.data || {},
-        elem = this;
+      elem = this;
 
-      if (!elem[offScreenEvent]){
+      if (!elem[offScreenEvent]) {
         addSonar(elem, {
+          /*parent: data.parent,*/
           px: data.distance,
           full: data.full,
-          evt: offScreenEvent /*,
-          parent: data.parent */
+          evt: offScreenEvent
         });
       }
     },
 
-    remove: function( handleObj ) {
-      removeSonar( this, offScreenEvent );
+    remove: function (handleObj) {
+      removeSonar(this, offScreenEvent);
     }
   };
 
   // console.log(pollQueue);
-})( jQuery, window, document );
+}(jQuery, window, document));
